@@ -1,4 +1,4 @@
-FROM alpine:3
+FROM lsiobase/alpine
 
 RUN \
  echo "**** install build packages ****" && \
