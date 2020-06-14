@@ -1,11 +1,4 @@
-FROM lsiobase/alpine:3.11
-
-# set version label
-ARG BUILD_DATE
-ARG VERSION
-ARG HEALTHCHECKS_RELEASE
-LABEL build_version="Linuxserver.io version:- ${VERSION} Build-date:- ${BUILD_DATE}"
-LABEL maintainer="alex-phillips"
+FROM alpine:3
 
 RUN \
  echo "**** install build packages ****" && \
