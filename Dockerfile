@@ -13,6 +13,7 @@ RUN \
 	postgresql-dev \
 	py3-pip \
 	python3-dev \
+	openldap-dev \
 	zlib-dev && \
  echo "**** install runtime packages ****" && \
  apk add --no-cache --upgrade \
@@ -20,9 +21,10 @@ RUN \
 	postgresql-client \
 	python3 \
 	uwsgi \
-	uwsgi-python && \
+	uwsgi-python3 && \
  echo "**** install healthchecks ****" && \
  mkdir -p /app/healthchecks && \
+ mkdir -p /data/ && \
  if [ -z ${HEALTHCHECKS_RELEASE+x} ]; then \
 	HEALTHCHECKS_RELEASE=$(curl -sX GET "https://api.github.com/repos/healthchecks/healthchecks/releases/latest" \
 	| awk '/tag_name/{print $4;exit}' FS='[""]'); \
@@ -36,6 +38,7 @@ RUN \
  echo "**** install pip packages ****" && \
  cd /app/healthchecks && \
  pip3 install --no-cache-dir -r requirements.txt && \
+ pip3 install --no-cache-dir python-ldap django_auth_ldap && \
  echo "**** cleanup ****" && \
  apk del --purge \
 	build-dependencies && \
@@ -46,6 +49,11 @@ RUN \
 # copy local files
 COPY root/ /
 
+# copy patch file
+COPY patch/memberassignment.py /app/healthchecks/hc/accounts/
+
 # ports and volumes
 EXPOSE 8000
+
 VOLUME /config
+VOLUME /data

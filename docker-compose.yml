@@ -1,0 +1,17 @@
+version: '3'
+services:
+  healthchecks:
+    build:
+        context: ./
+    container_name: healthchecks
+    environment:
+      - PUID=1000
+      - PGID=1000
+    volumes:
+    - ./config:/config
+    - data:/data
+    ports:
+    - 8000:8000
+    restart: always
+volumes:
+  data:
