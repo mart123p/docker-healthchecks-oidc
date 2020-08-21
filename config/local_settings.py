@@ -1,58 +1,48 @@
-import ldap
-from django_auth_ldap.config import LDAPSearch, GroupOfNamesType
+# Start of OIDC
+from .settings import INSTALLED_APPS as settings_ia
+from .settings import AUTHENTICATION_BACKENDS as settings_ab
+from .settings import ROOT_URLCONF as settings_ru
 
+INSTALLED_APPS = list(settings_ia)
+INSTALLED_APPS.insert(INSTALLED_APPS.index("django.contrib.auth")+1, "mozilla_django_oidc")
+INSTALLED_APPS = tuple(INSTALLED_APPS)
 
-# Baseline configuration.
-AUTH_LDAP_SERVER_URI = 'ldap://openldap'
+AUTHENTICATION_BACKENDS = settings_ab + ("hc.accounts.ssochange.CustomOIDCAuthenticationBackend",)
 
-AUTH_LDAP_BIND_DN = 'cn=admin,dc=example,dc=com'
-AUTH_LDAP_BIND_PASSWORD = 'admin'
-AUTH_LDAP_USER_SEARCH = LDAPSearch(
-    'ou=testusers,dc=example,dc=com',
-    ldap.SCOPE_SUBTREE,
-    '(mail=%(user)s)',
-)
+ENABLE_OIDC = True
+OIDC_RP_SCOPES = 'openid email profile'
+OIDC_RP_CLIENT_ID = ""
+OIDC_RP_CLIENT_SECRET = ""
+OIDC_OP_AUTHORIZATION_ENDPOINT = "https://login.microsoftonline.com/TENANT-ID/oauth2/v2.0/authorize"
+OIDC_OP_TOKEN_ENDPOINT = "https://login.microsoftonline.com/TENANT-ID/oauth2/v2.0/token"
+OIDC_OP_USER_ENDPOINT = "https://graph.microsoft.com/oidc/userinfo"
+OIDC_OP_JWKS_ENDPOINT = "https://login.microsoftonline.com/TENANT-ID/discovery/v2.0/keys"
+OIDC_RP_SIGN_ALGO = "RS256"
+LOGIN_REDIRECT_URL = '/'
+LOGIN_REDIRECT_URL_FAILURE = '/oidc/fail'
 
-# Set up the basic group parameters.
-AUTH_LDAP_GROUP_SEARCH = LDAPSearch(
-    'ou=testgroups,dc=example,dc=com',
-    ldap.SCOPE_SUBTREE,
-    '(objectClass=groupOfNames)',
-)
-AUTH_LDAP_GROUP_TYPE = GroupOfNamesType(name_attr='cn')
+import sys
+from django.urls import path,include
+from django.views.generic.base import RedirectView
+from types import ModuleType
+from hc.accounts import ssoview
 
-# Simple group restrictions
-AUTH_LDAP_REQUIRE_GROUP = 'cn=executive,ou=testgroups,dc=example,dc=com'
+# Create a dynamic module that injects some additional routes before HC's
+sys.modules['sneaky_url'] = ModuleType('sneaky_url')
+class _Sneaky(ModuleType):
+  @property
+  def urlpatterns(self):
+    return [
+      path('oidc/fail', ssoview.fail),
+      path('oidc/', include('mozilla_django_oidc.urls')),
+      path('accounts/login/', RedirectView.as_view(url='/oidc/authenticate', permanent=True)),
+      path('', include(settings_ru))
+    ]
+sys.modules['sneaky_url'].__class__ = _Sneaky
+ROOT_URLCONF = 'sneaky_url'
+# End of OIDC
 
-# Populate the Django user from the LDAP directory.
-AUTH_LDAP_USER_ATTR_MAP = {
-    'first_name': 'givenName',
-    'last_name': 'sn',
-    'email': 'mail',
-}
-
-AUTH_LDAP_USER_FLAGS_BY_GROUP = {
-    'is_staff': 'cn=executive,ou=testgroups,dc=example,dc=com',
-    'is_superuser': 'cn=executive,ou=testgroups,dc=example,dc=com',
-}
-
-# This is the default, but I like to be explicit.
-AUTH_LDAP_ALWAYS_UPDATE_USER = True
-
-# Use LDAP group membership to calculate group permissions.
-AUTH_LDAP_FIND_GROUP_PERMS = True
-
-# Cache distinguised names and group memberships for an hour to minimize
-# LDAP traffic.
-AUTH_LDAP_CACHE_TIMEOUT = 3600
-
-# Keep ModelBackend around for per-user permissions and maybe a local
-# superuser.
-AUTHENTICATION_BACKENDS = (
-    'django_auth_ldap.backend.LDAPBackend',
-    'django.contrib.auth.backends.ModelBackend',
-)
-
+# Inject of the middleware for project assignement
 MIDDLEWARE = (
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -61,10 +51,13 @@ MIDDLEWARE = (
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "mozilla_django_oidc.middleware.SessionRefresh",
     "hc.accounts.middleware.TeamAccessMiddleware",
     "hc.accounts.memberassignment.MemberAssignmentMiddleware"
 )
 
+
+# Default setting for Healthchecks.io
 BASE_URL = "localhost"
 EMAIL_PORT = "587"
 EMAIL_HOST = "smtp.example.com"
@@ -78,7 +71,7 @@ SITE_NAME = "Example Healthchecks"
 DEBUG = False
 DEFAULT_FROM_EMAIL = "alert@example.com"
 
-ALLOWED_HOSTS = ["localhost"]
-CSRF_TRUSTED_ORIGINS = ["localhost"]
+ALLOWED_HOSTS = ["*"]
+CSRF_TRUSTED_ORIGINS = ["*"]
 
 PING_ENDPOINT = SITE_ROOT + "/ping/"
