@@ -1,4 +1,4 @@
-FROM lsiobase/alpine
+FROM lsiobase/alpine:3.12
 
 RUN \
  echo "**** install build packages ****" && \
@@ -11,9 +11,8 @@ RUN \
 	musl-dev \
 	mysql \
 	postgresql-dev \
-	py3-pip \
 	python3-dev \
-	openldap-dev \
+	libffi-dev \
 	zlib-dev && \
  echo "**** install runtime packages ****" && \
  apk add --no-cache --upgrade \
@@ -36,9 +35,11 @@ RUN \
  /tmp/healthchecks.tar.gz -C \
 	/app/healthchecks/ --strip-components=1 && \
  echo "**** install pip packages ****" && \
+ python3 -m ensurepip && \
+ rm -rf /usr/lib/python*/ensurepip && \
  cd /app/healthchecks && \
  pip3 install --no-cache-dir -r requirements.txt && \
- pip3 install --no-cache-dir python-ldap django_auth_ldap && \
+ pip3 install --no-cache-dir mozilla_django_oidc && \
  echo "**** cleanup ****" && \
  apk del --purge \
 	build-dependencies && \
@@ -50,7 +51,8 @@ RUN \
 COPY root/ /
 
 # copy patch file
-COPY patch/memberassignment.py /app/healthchecks/hc/accounts/
+COPY patch/* /app/healthchecks/hc/accounts/
+COPY view/* /app/healthchecks/templates/
 
 # ports and volumes
 EXPOSE 8000
